@@ -19,6 +19,8 @@ class LangPull extends Command
     protected $apikey = 'YOUR_API_KEY';
     protected $project = 'YOUR_PROJECT_ID';
 
+    protected $tmpFileName = 'LocaliseArchive';
+
     /**
      * The console command description.
      *
@@ -37,14 +39,23 @@ class LangPull extends Command
     }
 
     /**
+     * @return string
+     */
+    protected function getRoot()
+    {
+        return dirname(__FILE__).'/../../../';
+    }
+
+    /**
      * Execute the console command.
      *
      * @return mixed
      */
     public function handle()
     {
+
         $client = new \GuzzleHttp\Client();
-        $response = $client->request('POST', 'https://lokali.se/api/project/export', [
+        $response = $client->request('POST', 'https://api.lokalise.co/api/project/export', [
             'multipart' => [
                 [
                     'name'     => 'api_token',
@@ -62,58 +73,61 @@ class LangPull extends Command
                     'name'     => 'export_empty',
                     'contents' => 'base'
                 ],
-            ],
-            'verify' => './resources/assets/cacert.pem',
+                [
+                    'name'     => 'use_original',
+                    'contents' => '1'
+                ],
+            ]
         ]);
-
         $body = $response->getBody();
+
         $details = json_decode($body);
         $file = $details->bundle->file;
 
-        $languages = Config::get('app.site_lang');
-        $savepath = './resources/lang/';
+        $remoteArchive = 'https://lokalise.co/'.$file;
 
-        $remotefile = 'https://lokali.se/'.$file;
-        $newfile = './storage/tmp_file.zip';
+        $langFilesArchive = $this->getRoot().'/storage/'.$this->tmpFileName.'.zip';
 
-        if (!copy($remotefile, $newfile)) {
-            echo "failed to copy $remotefile...\n";
+        // copy archive
+        $this->copyArchive($remoteArchive, $langFilesArchive);
+
+        // extract files
+        $this->extractFiles($langFilesArchive);
+
+        // delete tmp archive
+        unlink($langFilesArchive);
+
+    }
+
+
+    /**
+     * @param $remoteArchive
+     * @param $langFilesArchive
+     */
+    protected function copyArchive($remoteArchive, $langFilesArchive)
+    {
+        if (!copy($remoteArchive, $langFilesArchive)) {
+            print "Failed to copy $remoteArchive...".PHP_EOL;
             exit;
+        }else{
+            print "Localise file impoted".PHP_EOL;
         }
+    }
 
+    /**
+     * @param $langFilesArchive
+     */
+    protected function extractFiles($langFilesArchive)
+    {
         $zip = new ZipArchive;
-        if ($zip->open($newfile) === true) {
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $zipfilename = strtolower(basename($zip->getNameIndex($i), ".php"));
 
-                if ($zipfilename === 'en') {
-                    continue;
-                }
 
-                if ($zipfilename === 'es_es') {
-                    $zipfilename = 'es';
-                }
-
-                if (array_key_exists($zipfilename, $languages)) {
-                    $fp = $zip->getStream($zip->getNameIndex($i));
-                    if (!$fp) {
-                        exit("failed\n");
-                    }
-                    $contents = '';
-                    while (!feof($fp)) {
-                        $contents .= fread($fp, 2);
-                    }
-                    $newpath = $savepath.$zipfilename.'/app.php';
-                    echo $newpath."\r\n";
-                    fclose($fp);
-                    file_put_contents($newpath, $contents);
-                }
-
-            }
-            echo 'ok';
+        if ($zip->open($langFilesArchive) === TRUE) {
+            $zip->extractTo($this->getRoot().'/resources/lang/');
+            $zip->close();
+            print "Files updated".PHP_EOL;
         } else {
-            echo 'failed';
+            print "Error extract files".PHP_EOL;
         }
-        unlink($newfile);
     }
 }

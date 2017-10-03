@@ -17,6 +17,21 @@ class LangPush extends Command
     protected $apikey = 'YOUR_API_KEY';
     protected $project = 'YOUR_PROJECT_ID';
 
+    protected $langDir = './resources/lang';
+
+    protected $langs = [
+        'ru' =>[
+            'code' => 'ru'
+        ],
+        'az' =>[
+            'code' => 'az'
+        ],
+        'en' =>[
+            'code' => 'en'
+        ],
+
+    ];
+    
     /**
      * The console command description.
      *
@@ -32,6 +47,13 @@ class LangPush extends Command
     public function __construct()
     {
         parent::__construct();
+
+        $this->getLangFilesList();
+    }
+
+    protected function getRoot()
+    {
+        return dirname(__FILE__).'/../../../';
     }
 
     /**
@@ -42,36 +64,62 @@ class LangPush extends Command
     public function handle()
     {
         $client = new \GuzzleHttp\Client();
-        $file = file_get_contents('./resources/lang/en/app.php');
-        $response = $client->request('POST', 'https://lokali.se/api/project/import', [
-            'multipart' => [
-                [
-                    'name'     => 'api_token',
-                    'contents' => $this->apikey
-                ],
-                [
-                    'name'     => 'id',
-                    'contents' => $this->project
-                ],
-                [
-                    'name'     => 'replace',
-                    'contents' => '1'
-                ],
-                [
-                    'name'     => 'lang_iso',
-                    'contents' => 'en'
-                ],
-                [
-                    'name'     => 'file',
-                    'contents' => $file,
-                    'filename' => 'app.php',
-                ]
-            ],
-            'verify' => './resources/assets/cacert.pem',
-        ]);
-        $body = $response->getBody();
 
-        echo $body;
+        foreach($this->files as $langCode => $langFiles){
+            foreach($langFiles as $file){
+                $fileContent = file_get_contents($file['dirname'].'/'.$file['basename']);
+                $response = $client->request('POST', 'https://api.lokalise.co/api/project/import', [
+                    'multipart' => [
+                        [
+                            'name'     => 'api_token',
+                            'contents' => $this->apikey
+                        ],
+                        [
+                            'name'     => 'id',
+                            'contents' => $this->project
+                        ],
+                        [
+                            'name'     => 'replace',
+                            'contents' => '0'
+                        ],
+                        [
+                            'name'     => 'distinguish',
+                            'contents' => '1'
+                        ],
+                        [
+                            'name'     => 'lang_iso',
+                            'contents' => $langCode
+                        ],
+                        [
+                            'name'     => 'file',
+                            'contents' => $fileContent,
+                            'filename' => $file['basename'],
+                        ],
+                    ]
+                ]);
+                $body = $response->getBody();
 
+                print 'Lang: '.$langCode.PHP_EOL;
+                print 'File: '.$file['basename'].PHP_EOL;
+                print 'Result: '.$body.PHP_EOL;
+            }
+        }
+    }
+
+    /**
+     * get all lang files from dir
+     */
+    protected function getLangFilesList()
+    {
+        // prepare files path
+        $pullPath = $this->getRoot().$this->langDir.'/';
+
+        // get files info
+        foreach ($this->langs as $lang_code => $lang_value){
+            $filesList = \File::files($pullPath.$lang_code);
+            foreach ($filesList as $file){
+                $this->files[$lang_code][] = pathinfo($file);
+            }
+        }
     }
 }
