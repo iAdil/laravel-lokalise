@@ -1,11 +1,9 @@
+### This is the fork of the project https://github.com/fanart-tv/laravel-lokalise. Unlike it, these classes dynamically export and import all language files from the folder /lang/ 
+
 # laravel-lokalise
 Console integration with lokali.se
 
 This is a very simple pair of files that will allow you to use `php artisan lang:push` and `php artisan lang:pull` to automatically push your all languages and import your translations to and from https://lokali.se
-
-
-This is the fork of the project https://github.com/fanart-tv/laravel-lokalise.
-Unlike it, these classes dynamically export and import all language files from the folder /lang/
 
 
 ## Requirements
